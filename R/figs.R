@@ -441,85 +441,78 @@ phydat <- phyraw %>%
 hyddat <- hydraw %>%
   filter(Beg_end %in% 'B') %>% # each location has a beginning and end log, take one
   filter(Depth %in% range(Depth), .by = 'Reference') %>% # some have depth profile, take bottom
-  select(Reference, depth = Depth, temp = Temperature)
+  select(Reference, depth = Depth, temp = Temperature) %>%
+  mutate(
+    cnt = n(),
+    .by = 'Reference'
+  )
 
 # combine sal, temp data with location data, specific to tb
 fimtempdat <- phydat %>%
   inner_join(hyddat, by = 'Reference') %>%
   filter(year(date) > 1995) %>% # only spring/fall sampling prior to 1996
-  st_intersection(tbseg[, 'bay_segment'])
+  st_intersection(tbseg[, 'bay_segment']) %>%
+  st_set_geometry(NULL) %>%
+  arrange(Reference) %>%
+  filter(cnt == 2) %>% # get those with two depths
+  mutate(
+    loc = ifelse(depth == min(depth), 'Top', 'Bottom'),
+    .by = Reference
+  )
 
-# load(file = here('data/fimsgtempdat.RData'))
-#
-# toplo <- fimsgtempdat %>%
-#   select(date, temp, sal, bay_segment) %>%
-#   mutate(
-#     yr = year(date),
-#     mo = month(date)
-#   ) %>%
-#   pivot_longer(temp:sal) %>%
-#   summarise(
-#     avev = mean(value, na.rm = T),
-#     se = sd(value, na.rm = T)^2,
-#     lov = t.test(value)$conf.int[1],
-#     hiv = t.test(value)$conf.int[2],
-#     cnt = n(),
-#     .by = c(bay_segment, yr, name)
-#   ) %>%
-#   mutate(
-#     bay_segment = factor(bay_segment, levels = c('OTB', 'HB', 'MTB', 'LTB')),
-#     name = factor(name, levels = c('temp', 'sal'), labels = c('Water temp. (\u00B0C)', 'Salinity (ppt)'))
-#   )
-#
-# # # get mixed-effect meta-analysis linear preds
-# # mixmets <- toplo %>%
-# #   group_nest(bay_segment, name) %>%
-# #   mutate(
-# #     data = purrr::map(data, function(x){
-# #
-# #       mod <- mixmeta(avev ~ yr, S = se, random = ~1|yr, data = x, method = 'reml')
-# #
-# #       out <- x %>%
-# #         mutate(
-# #           prd = predict(mod)
-# #         ) %>%
-# #         select(yr, prd)
-# #
-# #       return(out)
-# #
-# #     })
-# #   ) %>%
-# #   unnest(data)
-#
-# thm <- theme_minimal() +
-#   theme(
-#     strip.placement = 'outside',
-#     panel.grid.minor = element_blank(),
-#     axis.text.y = element_text(size = 11),
-#     legend.text = element_text(size= 12),
-#     axis.text.x = element_text(size = 7),
-#     legend.position = 'none'
-#   )
-#
-# p <- ggplot(toplo, aes(x = yr, y = avev, color = name)) +
-#   geom_linerange(aes(ymin = lov, ymax = hiv), show.legend = F, alpha = 0.7) +
-#   geom_point(size = 0.75) +
-#   # scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr), by = 3)) +
-#   # geom_line(data = mixmets, aes(y = prd), color = 'steelblue4') +
-#   scale_color_manual(values = c('red2', 'dodgerblue2')) +
-#   geom_smooth(method = 'lm', se = F, formula = y ~ x) +
-#   facet_grid(name ~ bay_segment, switch = 'y', scales = 'free_y') +
-#   thm +
-#   theme(
-#     strip.text = element_text(size = 12)
-#   ) +
-#   labs(
-#     x = NULL,
-#     y = NULL,
-#     color = NULL,
-#     shape = NULL
-#   )
-#
-# png(here('figs/fimtrend.png'), height = 3.5, width = 7, family = 'serif', units = 'in', res = 500)
-# print(p)
-# dev.off()
+toplo <- fimtempdat %>%
+  select(date, temp, loc, bay_segment) %>%
+  mutate(
+    yr = year(date),
+    mo = month(date)
+  ) %>%
+  mutate(
+    mocnt = length(unique(mo)),
+    .by = c(yr, bay_segment, loc)
+  ) %>%
+  filter(mocnt > 11) %>%
+  summarise(
+    avev = mean(temp, na.rm = T),
+    lov = tryCatch(t.test(temp, na.rm = T)$conf.int[1], error = function(err) NA),
+    hiv = tryCatch(t.test(temp, na.rm = T)$conf.int[2], error = function(err) NA),
+    .by = c(bay_segment, yr, loc)
+  ) %>%
+  mutate(
+    avev = ifelse(is.na(lov), NA, avev),
+    bay_segment = factor(bay_segment, levels = c('OTB', 'HB', 'MTB', 'LTB')),
+    name = 'Water temp. (\u00B0C)'
+  )
+
+thm <- theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.text.y = element_text(size = 11),
+    axis.title.y = element_text(size = 10),
+    legend.text = element_text(size= 12),
+    plot.background = element_rect(colour = NA, fill = 'transparent'),
+    panel.background = element_rect(fill = 'transparent'),
+    strip.text = element_text(size = 12),
+    legend.position = 'top'
+  )
+
+wd <- 0.5
+
+p <- ggplot(toplo, aes(x = yr, y = avev, group = loc, color = loc)) +
+  geom_linerange(aes(ymin = lov, ymax = hiv), position = position_dodge2(width = wd), show.legend = F, alpha = 0.7) +
+  geom_point(position = position_dodge2(width = wd), size = 0.5) +
+  # scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr), by = 3)) +
+  # geom_line(data = mixmets %>% filter(var == 'Water temp. (\u00B0C)'), aes(y = prd)) +
+  geom_smooth(method = 'lm', se = F, formula = y ~ x) +
+  facet_grid(~ bay_segment) +
+  scale_color_manual(values = c( 'red2', 'red4')) +
+  thm +
+  labs(
+    x = NULL,
+    y = '\u00B0C',
+    color = 'Water temp.',
+    shape = NULL
+  )
+
+png(here('figs/fimtrend.png'), width = 9, height = 3.5, units = 'in', res = 300)
+print(p)
+dev.off()
