@@ -20,7 +20,7 @@ seglabs <- data.frame(
 # chlorophyll trend ---------------------------------------------------------------------------
 
 p <- show_thrplot(epcdata, bay_segment = 'MTB', yrrng = c(1975, 2023)) +
-  theme_bw() +
+  theme_minimal() +
   theme(
     legend.position = 'none',
     panel.grid.minor = element_blank()
@@ -34,24 +34,24 @@ dev.off()
 
 # sg coverage map -----------------------------------------------------------------------------
 
-png(here('figs/seagrasscov.png'), width = 4.5, height = 3.5, units = 'in', res = 300)
+png(here('figs/seagrasscov.png'), width = 5, height = 3.75, units = 'in', res = 300)
 show_seagrasscoverage(seagrass)
 dev.off()
 
-
 # air temp ------------------------------------------------------------------------------------
 
-load(file = url("https://github.com/tbep-tech/temp-manu/raw/main/data/speidat.RData"))
+load(file = here('data/tiadat.RData'))
 
-toplo <- speidat %>%
+toplo <- tiadat %>%
   summarise(
     temp = mean(tavg_c),
     .by = yr
-  )
+  ) %>%
+  filter(yr >= 1940)
 p <- ggplot(toplo, aes(x = yr, y = temp)) +
   geom_line(col = 'red', linewidth = 1) +
   geom_point(col = 'red', size = 2) +
-  theme_bw(base_size = 14) +
+  theme_minimal(base_size = 18) +
   theme(
     legend.position = 'none',
     panel.grid.minor = element_blank()
