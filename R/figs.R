@@ -54,7 +54,10 @@ p <- ggplot(toplo, aes(x = yr, y = temp)) +
   theme_minimal(base_size = 18) +
   theme(
     legend.position = 'none',
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = 'transparent', color = NA),
+    panel.background = element_rect(fill = 'transparent', color = NA),
+    axis.text = element_text(size = 18)
   ) +
   # scale_x_continuous(breaks = seq(1975, 2023, 10)) +
   labs(
@@ -63,9 +66,7 @@ p <- ggplot(toplo, aes(x = yr, y = temp)) +
     y = '\u00B0C'
     )
 
-png(here('figs/airtemp.png'), width = 10.5, height = 4.5, units = 'in', res = 300)
-print(p)
-dev.off()
+ggsave(p, filename = here('figs/airtemp.png'), width = 10.5, height = 4.5, units = 'in', dpi = 200, bg= 'transparent')
 
 # EPC map -------------------------------------------------------------------------------------
 
